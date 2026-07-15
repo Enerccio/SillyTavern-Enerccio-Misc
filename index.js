@@ -1,5 +1,7 @@
 import {SlashCommandParser} from "../../../slash-commands/SlashCommandParser.js";
 import {SlashCommand} from "../../../slash-commands/SlashCommand.js";
+import {getMaxPromptTokens} from "../../../../script.js";
+import {getWorldInfoPrompt} from "../../../world-info.js";
 
 $(function () {
     if (typeof SlashCommandParser !== 'undefined' && SlashCommandParser.addCommandObject) {
@@ -135,6 +137,130 @@ $(function () {
                     return selectedMessages.map(msg => msg.mes || "").join(separator);
                 },
                 returns: 'Concatenated history of messages.',
+                helpString: 'Returns "numHistory" messages concatenated backwards from "msgId". Ignores the message directly above if it is a user message.'
+            }));
+        }
+
+        if (!SlashCommandParser.commands['enerccio-misc-qvink-lorebook']) {
+            SlashCommandParser.addCommandObject(SlashCommand.fromProps({
+                name: 'enerccio-misc-qvink-lorebook',
+                callback: async (namedArgs, unnamedArgs) => {
+                    const context = SillyTavern.getContext();
+                    if (!context.chat || context.chat.length === 0) {
+                        return "";
+                    }
+
+                    let targetMsgId = null;
+                    let targetNumHistory = null;
+                    let trigger = null;
+
+                    // Handle Named Arguments (e.g. msgId=10 numHistory=5)
+                    if (namedArgs && typeof namedArgs === 'object') {
+                        if (namedArgs.msgId !== undefined) {
+                            targetMsgId = parseInt(namedArgs.msgId, 10);
+                        }
+                        if (namedArgs.numHistory !== undefined) {
+                            targetNumHistory = parseInt(namedArgs.numHistory, 10);
+                        }
+                        if (namedArgs.trigger !== undefined) {
+                            trigger = namedArgs.trigger;
+                        }
+                    }
+
+                    // Handle Positional Arguments (e.g. 10 5)
+                    let rawInput = "";
+                    if (typeof namedArgs === 'string' || typeof namedArgs === 'number') {
+                        rawInput = String(namedArgs);
+                        if (unnamedArgs) {
+                            rawInput += " " + String(unnamedArgs);
+                        }
+                    } else if (typeof unnamedArgs === 'string') {
+                        rawInput = unnamedArgs;
+                    }
+
+                    const parts = rawInput.trim().split(/\s+/).filter(p => p.length > 0);
+
+                    if (parts.length > 0) {
+                        if (parts.length === 1) {
+                            if (targetMsgId === null) {
+                                targetMsgId = parseInt(parts[0], 10);
+                            }
+                        } else if (parts.length === 2) {
+                            if (targetMsgId === null) {
+                                targetMsgId = parseInt(parts[0], 10);
+                            }
+                            if (targetNumHistory === null) {
+                                targetNumHistory = parseInt(parts[1], 10);
+                            }
+                        } else {
+                            if (targetMsgId === null) {
+                                targetMsgId = parseInt(parts[0], 10);
+                            }
+                            if (targetNumHistory === null) {
+                                targetNumHistory = parseInt(parts[1], 10);
+                            }
+                            if (trigger === null) {
+                                trigger = parts[2];
+                            }
+                        }
+                    }
+
+                    const chatLength = context.chat.length;
+                    if (targetMsgId === null || isNaN(targetMsgId)) {
+                        targetMsgId = chatLength;
+                    }
+                    if (targetNumHistory === null || isNaN(targetNumHistory)) {
+                        targetNumHistory = 1; // Default to gathering 1 message
+                    }
+                    if (trigger === null) {
+                        trigger = "qvink";
+                    }
+
+                    targetMsgId = Math.max(0, Math.min(targetMsgId, chatLength));
+
+                    const selectedMessages = [];
+                    let i = targetMsgId;
+
+                    while (i >= 0 && selectedMessages.length < targetNumHistory) {
+                        const msg = context.chat[i];
+                        if (msg) {
+                            selectedMessages.push(msg);
+                        }
+                        i--;
+                    }
+
+                    selectedMessages.reverse();
+
+                    const rawSeparator = (namedArgs && (namedArgs.join || namedArgs.separator)) || "\n\n";
+                    const separator = rawSeparator
+                        .replace(/\\n/g, '\n')
+                        .replace(/\\r/g, '\r')
+                        .replace(/\\t/g, '\t');
+
+                    const text = selectedMessages.map(msg => msg.mes || "").join(separator);
+
+                    const globalScanData = {
+                        personaDescription: '',
+                        characterDescription: '',
+                        characterPersonality: '',
+                        characterDepthQuery: '',
+                        scenario: '',
+                        creatorNotes: '',
+                        trigger: trigger,
+                    };
+                    let this_max_context = getMaxPromptTokens();
+                    const {
+                        worldInfoString,
+                        worldInfoBefore,
+                        worldInfoAfter,
+                        worldInfoExamples,
+                        worldInfoDepth,
+                        outletEntries
+                    } = await getWorldInfoPrompt([ text ], this_max_context, false, globalScanData);
+
+                    return ((worldInfoBefore || '') + (worldInfoAfter + ''));
+                },
+                returns: 'Generated lorebook.',
                 helpString: 'Returns "numHistory" messages concatenated backwards from "msgId". Ignores the message directly above if it is a user message.'
             }));
         }
