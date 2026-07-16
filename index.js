@@ -284,8 +284,7 @@ $(function () {
 
                     // Dispatch through the compat pipe to run cleanBulkText/cleanSingleMessage
                     if (window.enerccio_compat?.textProcessor) {
-                        const result = await window.enerccio_compat.textProcessor(targetMessage.mes, { imprint: false });
-                        return Array.isArray(result) ? result[0] : targetMessage.mes;
+                        return await window.enerccio_compat.textProcessor(targetMessage.mes, {imprint: false});
                     }
 
                     return targetMessage.mes;
