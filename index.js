@@ -264,5 +264,35 @@ $(function () {
                 helpString: 'Returns "numHistory" messages concatenated backwards from "msgId". Ignores the message directly above if it is a user message.'
             }));
         }
+
+        if (!SlashCommandParser.commands['enerccio-misc-qvink-processed-message']) {
+            SlashCommandParser.addCommandObject(SlashCommand.fromProps({
+                name: 'enerccio-misc-qvink-processed-message',
+                callback: async (namedArgs, unnamedArgs) => {
+                    const context = SillyTavern.getContext();
+                    if (!context.chat || context.chat.length === 0) return "";
+
+                    // Parse out target message ID matching your established conventions
+                    let rawId = (namedArgs && typeof namedArgs === 'object') ? namedArgs.msgId : namedArgs;
+                    if (!rawId && unnamedArgs) rawId = unnamedArgs;
+
+                    const index = parseInt(rawId || context.chat.length - 1, 10);
+                    if (isNaN(index) || index < 0 || index >= context.chat.length) return "";
+
+                    const targetMessage = context.chat[index];
+                    if (!targetMessage || !targetMessage.mes) return "";
+
+                    // Dispatch through the compat pipe to run cleanBulkText/cleanSingleMessage
+                    if (window.enerccio_compat?.textProcessor) {
+                        const result = await window.enerccio_compat.textProcessor(targetMessage.mes, { imprint: false });
+                        return Array.isArray(result) ? result[0] : targetMessage.mes;
+                    }
+
+                    return targetMessage.mes;
+                },
+                returns: 'Scrubbed text of the designated message index run through the compat pipeline.',
+                helpString: 'Retrieves a chat message by index and purges language footprints using enerccio_compat.'
+            }));
+        }
     }
 });
